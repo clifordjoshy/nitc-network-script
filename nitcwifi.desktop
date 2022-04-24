@@ -1,0 +1,8 @@
+[Desktop Entry]
+Encoding=UTF-8
+Version=1.0
+Type=Application
+Exec=nitc-wifi
+Terminal=true
+Name=NITC Wifi
+Icon=network-server
