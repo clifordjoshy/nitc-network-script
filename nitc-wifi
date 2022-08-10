@@ -1,78 +1,90 @@
 #!/bin/bash
 
+# Get the final URL after redirection to captive portal
+# We need this because there's more than one IP that's used
+logout_url=$(curl -Ls -o /dev/null -w %{url_effective} http://0x0.st | cut -d/ -f1-3)
+
 function logout {
-    res=$(curl -s -m 1 "192.168.116.1:1000/logout?")
-    if [ -z "$res" ]; then
-        echo -e "\nHostel logout timed out(192.168.116.1). Trying Academic (192.168.40.1)"
-        res=$(curl -s -m 0.5 "192.168.40.1:1000/logout?")
-        if [ -z "$res" ]; then
-            echo "Academic logout timed out. Operation failed"
-            return
-        fi
-    fi
-    notify-send 'NITC Wifi' 'Logged out' -i /usr/share/icons/Adwaita/32x32/status/network-wireless-connected-symbolic.symbolic.png
-
+	res=$(curl -s "$logout_url/logout?")
+	if [ -z "$res" ]; then
+		echo -ne "\nLogout failed"
+		return
+	fi
+	echo -ne "\nLogged out. Bye bye"
+	notify-send 'NITC Wifi' 'Logged out' -i /usr/share/icons/Adwaita/32x32/status/network-wireless-connected-symbolic.symbolic.png
 }
-
-if [ "$1" == "logout" ]; then
-    logout
-    exit 0
-fi
 
 expressions=("username:password")
 
-curlr1=$(curl -s -L http://0x0.st/)
-magic=$(echo "$curlr1" | grep magic | cut -d '"' -f6)
+redir_res=$(curl -s -L http://0x0.st/)
+magic=$(echo "$redir_res" | grep magic | cut -d '"' -f6)
+
+# If magic is empty, did not reach the wifi login page
 if [ -z "$magic" ]; then
-    isconn=$(echo "$curlr1" | grep NULL)
-    if [ -z "$isconn" ]; then
-        echo "Not connected to internet."
-        notify-send 'NITC Wifi' 'Not connected to internet' -i /usr/share/icons/Adwaita/32x32/status/network-wireless-connected-symbolic.symbolic.png
-    else
-        echo "Maybe already logged in?"
-        notify-send 'NITC Wifi' 'Maybe already logged in?' -i /usr/share/icons/Adwaita/32x32/status/network-wireless-connected-symbolic.symbolic.png
-    fi
-    exit 0
+
+	isconn=$(echo "$redir_res" | grep NULL)
+	# if the page contains NULL, then it accessed the actual webpage
+
+	if [ -z "$isconn" ]; then
+		echo "Not connected to internet."
+		notify-send 'NITC Wifi' 'Not connected to internet' -i /usr/share/icons/Adwaita/32x32/status/network-wireless-connected-symbolic.symbolic.png
+	else
+		echo "Maybe already logged in?"
+		notify-send 'NITC Wifi' 'Maybe already logged in?' -i /usr/share/icons/Adwaita/32x32/status/network-wireless-connected-symbolic.symbolic.png
+	fi
+	exit 0
 fi
 
-trap logout EXIT
-
+# Set seed for bash RANDOM to "$<process-id>$<epoch-time>"
 RANDOM=$$$(date +%s)
 
+# Keep trying random entries until a login succeeds
 while true; do
 
-    sel=${expressions[$RANDOM % ${#expressions[@]}]}
+	sel=${expressions[$RANDOM % ${#expressions[@]}]}
 
-    u=${sel:0:9}
-    p=${sel:10:10}
+	u=${sel:0:9}
+	p=${sel:10:10}
 
-    curlres=$(curl -s -L -d "magic=$magic" -d "username=$u" -d "password=$p" "http://0x0.st")
-    if [ -n "$(echo $curlres | grep 'over limit')" ]; then
-        echo "Overlimit"
-    elif [ -n "$(echo $curlres | grep 'try again')" ]; then
-        echo "Login failed"
-    elif [ -n "$(echo $curlres | grep 'To change your password')" ]; then
-        echo "Logged in"
-        notify-send 'NITC Wifi' 'Connected' -i /usr/share/icons/Adwaita/32x32/status/network-wireless-connected-symbolic.symbolic.png
-        break
-    else
-        echo "Invalid result"
-    fi
+	login_res=$(curl -s -L -d "magic=$magic" -d "username=$u" -d "password=$p" "http://0x0.st")
+
+	if [ -n "$(echo $login_res | grep 'over limit')" ]; then
+		echo "Overlimit"
+	elif [ -n "$(echo $login_res | grep 'try again')" ]; then
+		echo "Login failed"
+	elif [ -n "$(echo $login_res | grep 'To change your password')" ]; then
+		echo "Logged in"
+		notify-send 'NITC Wifi' 'Connected' -i /usr/share/icons/Adwaita/32x32/status/network-wireless-connected-symbolic.symbolic.png
+		break
+	else
+		echo "Invalid result"
+	fi
 done
 
-timer=$(echo $curlres | awk -F 'countDownTime=' '{print $2}' | awk 'NF>0{print $1}')
+if [ "$1" == "--oneshot" ]; then
+	echo -e "\nVisit $logout_url/logout? to logout"
+	exit 0
+fi
+
+# Execute the logout function when this script exits
+trap logout EXIT
+
+timer=$(echo $login_res | awk -F 'countDownTime=' '{print $2}' | awk 'NF>0{print $1}')
 timer_total=$timer
-reauthurl=$(echo "$curlres" | grep location.href | cut -d'"' -f2)
+reauthurl=$(echo "$login_res" | grep location.href | cut -d'"' -f2)
 
 while true; do
-    echo -e "\nRe-auth timer running"
-    echo -n $timer seconds
+	echo -e "\nRe-auth timer running"
+	echo -n $timer seconds
 
-    while [ "$timer" -gt 5 ]; do
-        printf '\r%s%d seconds' "$(tput el)" "$timer"
-        timer=$(expr $timer - 1)
-        sleep 1
-    done
-    curl -s $reauthurl >/dev/null
-    timer=$timer_total
+	while [ "$timer" -gt 5 ]; do
+		printf '\r%s%d seconds' "$(tput el)" "$timer"
+		timer=$(expr $timer - 1)
+		sleep 1
+	done
+
+	curl -s $reauthurl >/dev/null
+
+	# Reauthenticated. Restart timer
+	timer=$timer_total
 done
