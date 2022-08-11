@@ -16,3 +16,9 @@ expressions=("username:password" "user2:pass2")
 A desktop file is also included in the repo which you could move to `/usr/share/applications` or wherever your DE places desktop files.
 
 Also, this is a Linux script, probably won't work on Windows. Can be translated to Powershell or whatever though.
+
+## Options
+
+| Option    | Description                              |
+| --------- | ---------------------------------------- |
+| --oneshot | Run the script without the refresh timer |
