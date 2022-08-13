@@ -2,7 +2,7 @@
 Encoding=UTF-8
 Version=1.0
 Type=Application
-Exec=nitc-wifi
+Exec=nitc-wifi -n
 Terminal=true
 Name=NITC Wifi
 Icon=network-server

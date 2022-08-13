@@ -1,5 +1,34 @@
 #!/bin/bash
 
+notify=false
+oneshot=false
+
+# Parse options
+while getopts "hon" option; do
+	case ${option} in
+	o) #For option o (oneshot)
+		oneshot=true
+		;;
+	n) #For option n (notify)
+		notify=true
+		;;
+	h) #For option h (help)
+		echo "usage: nitc-wifi [-h|o|n]"
+		echo ""
+		echo "Script to manage nitc network authentication and refresh"
+		echo ""
+		echo "options:"
+		echo -e "  -h\tshow this help message and exit"
+		echo -e "  -n\tsend a notification on network status update"
+		echo -e "  -o\trun as oneshot without refresh. will exit the script after authentication"
+		exit 0
+		;;
+	\?) #For invalid option
+		exit 0
+		;;
+	esac
+done
+
 # Get the final URL after redirection to captive portal
 # We need this because there's more than one IP that's used
 logout_url=$(curl -Ls -o /dev/null -w %{url_effective} http://0x0.st | cut -d/ -f1-3)
@@ -11,7 +40,7 @@ function logout {
 		return
 	fi
 	echo -ne "\nLogged out. Bye bye"
-	notify-send 'NITC Wifi' 'Logged out' -i /usr/share/icons/Adwaita/32x32/status/network-wireless-connected-symbolic.symbolic.png
+	$notify && notify-send 'NITC Wifi' 'Logged out'
 }
 
 expressions=("username:password")
@@ -27,10 +56,10 @@ if [ -z "$magic" ]; then
 
 	if [ -z "$isconn" ]; then
 		echo "Not connected to internet."
-		notify-send 'NITC Wifi' 'Not connected to internet' -i /usr/share/icons/Adwaita/32x32/status/network-wireless-connected-symbolic.symbolic.png
+		$notify && notify-send 'NITC Wifi' 'Not connected to internet'
 	else
 		echo "Maybe already logged in?"
-		notify-send 'NITC Wifi' 'Maybe already logged in?' -i /usr/share/icons/Adwaita/32x32/status/network-wireless-connected-symbolic.symbolic.png
+		$notify && notify-send 'NITC Wifi' 'Maybe already logged in?'
 	fi
 	exit 0
 fi
@@ -54,14 +83,14 @@ while true; do
 		echo "Login failed"
 	elif [ -n "$(echo $login_res | grep 'To change your password')" ]; then
 		echo "Logged in"
-		notify-send 'NITC Wifi' 'Connected' -i /usr/share/icons/Adwaita/32x32/status/network-wireless-connected-symbolic.symbolic.png
+		notify-send 'NITC Wifi' 'Connected'
 		break
 	else
 		echo "Invalid result"
 	fi
 done
 
-if [ "$1" == "--oneshot" ]; then
+if [ "$oneshot" = true ]; then
 	echo -e "\nVisit $logout_url/logout? to logout"
 	exit 0
 fi

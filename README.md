@@ -19,6 +19,8 @@ Also, this is a Linux script, probably won't work on Windows. Can be translated 
 
 ## Options
 
-| Option    | Description                              |
-| --------- | ---------------------------------------- |
-| --oneshot | Run the script without the refresh timer |
+| Option | Description                                 |
+| ------ | ------------------------------------------- |
+| -h     | Print the help menu                         |
+| -o     | Run the script without the refresh timer    |
+| -n     | Send notifications on network status update |
